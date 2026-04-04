@@ -6,11 +6,14 @@ from langchain_text_splitters import CharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 
+import re
 import gradio as gr
 
-#getting the thumbnail,if not add default
 
 books = pd.read_csv("./dataset/books_with_emotions.csv")
+
+#preparing thumbnails
+
 books["large_thumbnail"] = books["thumbnail"] + "&fife=w800"
 books["large_thumbnail"] = np.where(
     books["large_thumbnail"].isna(),
@@ -18,18 +21,22 @@ books["large_thumbnail"] = np.where(
     books["large_thumbnail"],
 )
 
-#dealing with description  and saving in vector db
+#save descriptions for embedding
 
-books["tagged_description"].to_csv("tagged_description.txt",
-                                   sep = "\n",
-                                   index = False,
-                                   header = False)
+books["tagged_description"].to_csv(
+    "tagged_description.txt", sep="\n", index=False, header=False
+)
+
+#read descriptions
 
 with open("tagged_description.txt", "r", encoding="utf-8") as f:
     raw_text = f.read()
 
-books = re.split(r'(?=\d{13} )', raw_text)
-books = [b.strip() for b in books if b.strip()]
+#spliting  into  df
+
+texts_for_embedding = [desc.strip() for desc in raw_text.split("\n") if desc.strip()]
+
+#embedding
 
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2",
@@ -37,12 +44,12 @@ embeddings = HuggingFaceEmbeddings(
 )
 
 db_books = Chroma.from_texts(
-    books,
+    texts_for_embedding,
     embedding=embeddings,
     collection_name="books_test"
 )
 
-#creating the function
+#function 
 
 def retrieve_semantic_recommendations(
         query: str,
@@ -74,7 +81,7 @@ def retrieve_semantic_recommendations(
 
     return book_recs
 
-#final function
+#gradio function
 
 def recommend_books(
         query: str,
@@ -101,34 +108,27 @@ def recommend_books(
         results.append((row["large_thumbnail"], caption))
     return results
 
-#gradio dashboard
+#dashboard
 
-categories = ["All"] + sorted(books["simple_categories"].unique())
-tones = ["All"] + ["Happy", "Surprising", "Angry", "Suspenseful", "Sad"]
+categories = ["All"] + sorted(books["simple_categories"].dropna().unique())
+tones = ["All", "Happy", "Surprising", "Angry", "Suspenseful", "Sad"]
 
-with gr.Blocks(theme = gr.themes.Glass()) as dashboard:
+with gr.Blocks(theme=gr.themes.Glass()) as dashboard:
     gr.Markdown("# Semantic book recommender")
 
     with gr.Row():
-        user_query = gr.Textbox(label = "Please enter a description of a book:",
-                                placeholder = "e.g., A story about forgiveness")
-        category_dropdown = gr.Dropdown(choices = categories, label = "Select a category:", value = "All")
-        tone_dropdown = gr.Dropdown(choices = tones, label = "Select an emotional tone:", value = "All")
+        user_query = gr.Textbox(label="Please enter a description of a book:",
+                                placeholder="e.g., A story about forgiveness")
+        category_dropdown = gr.Dropdown(choices=categories, label="Select a category:", value="All")
+        tone_dropdown = gr.Dropdown(choices=tones, label="Select an emotional tone:", value="All")
         submit_button = gr.Button("Find recommendations")
 
     gr.Markdown("## Recommendations")
-    output = gr.Gallery(label = "Recommended books", columns = 8, rows = 2)
+    output = gr.Gallery(label="Recommended books", columns=8, rows=2)
 
-    submit_button.click(fn = recommend_books,
-                        inputs = [user_query, category_dropdown, tone_dropdown],
-                        outputs = output)
-
+    submit_button.click(fn=recommend_books,
+                        inputs=[user_query, category_dropdown, tone_dropdown],
+                        outputs=output)
 
 if __name__ == "__main__":
     dashboard.launch()
-
-
-
-
-
-
