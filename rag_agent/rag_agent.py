@@ -224,7 +224,104 @@ def make_tools(query_ref: dict):
     ]
 
 
+# agent setup
  
+AGENT_PROMPT = PromptTemplate.from_template("""You are a book recommendation agent.
+Your job is to find the best books for the user's query using the available tools.
+ 
+ALWAYS follow this order:
+1. vector_search — find candidate books
+2. metadata_filter — narrow by category and tone
+3. rerank — precision-rank the candidates
+4. explain_books — generate explanations
+ 
+Tools available:
+{tools}
+ 
+Tool names: {tool_names}
+ 
+User query: {input}
+ 
+Thought: {agent_scratchpad}""")
+ 
+ 
+def run_agent(
+    query:    str,
+    category: str = "All",
+    tone:     str  = "All",
+) -> dict:
+    """
+    Main entry point. Runs the full agentic pipeline.
+ 
+    Returns:
+        {
+          "books":        pd.DataFrame of final recommendations,
+          "explanations": dict of title -> explanation string,
+          "metrics":      dict from RunTracker,
+          "reasoning":    str — agent's overall reasoning summary,
+        }
+    """
+    global _tracker
+    _tracker = RunTracker()
+    _tracker.query = query
+ 
+    print(f"\n{'='*60}")
+    print(f"[Agent] Query: {query!r}")
+    print(f"[Agent] Category: {category} | Tone: {tone}")
+    print(f"{'='*60}")
+ 
+    query_ref: dict = {}
+ 
+    tools  = make_tools(query_ref)
+    agent  = create_react_agent(llm=_llm, tools=tools, prompt=AGENT_PROMPT)
+    executor = AgentExecutor(
+        agent=agent,
+        tools=tools,
+        verbose=True,
+        max_iterations=6,
+        handle_parsing_errors=True,
+        return_intermediate_steps=True,
+    )
+ 
+    agent_input = (
+        f"{query}. "
+        f"Filter by category: {category}. "
+        f"Emotional tone preference: {tone}."
+    )
+ 
+    try:
+        result = executor.invoke({"input": agent_input})
+        _tracker.reasoning = result.get("output", "")
+    except Exception as e:
+        print(f"[Agent] Error: {e}")
+        _tracker.reasoning = "Ran direct pipeline (agent loop error)."
+        df = _vector_search(query)
+        df = _metadata_filter(df, category, tone)
+        df = _rerank(query, df)
+        query_ref["final_df"] = df
+ 
+    final_df     = query_ref.get("final_df", pd.DataFrame())
+    explanations = query_ref.get("explanations", {})
+ 
+    if not explanations and not final_df.empty:
+        _tracker.log_step("explain-books")
+        for _, row in final_df.head(8).iterrows():
+            explanations[row["title"]] = _explain_book(
+                query, row["title"], str(row.get("description", ""))
+            )
+ 
+    _tracker.reasoning = _tracker.reasoning or (
+        f"Found books matching themes of: {query[:80]}"
+    )
+ 
+    print(f"\n[Agent] {_tracker.summary()}")
+ 
+    return {
+        "books":        final_df,
+        "explanations": explanations,
+        "metrics":      _tracker.to_dict(),
+        "reasoning":    _tracker.reasoning,
+    }
  
 
 
