@@ -13,7 +13,7 @@ from langchain_community.document_loaders import TextLoader
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
  
-from observability import setup_langsmith, RunTracker
+from observability_new import setup_langsmith, RunTracker
 from reranker import BookReranker
 from llm_local import get_llm, EXPLAIN_PROMPT, QUERY_ANALYSIS_PROMPT
 
@@ -29,8 +29,8 @@ _tracker:   RunTracker             = RunTracker()
 #intialize
 
 def initialize(
-    csv_path:    str = "./dataset/books_with_emotions.csv",
-    txt_path:    str = "./tagged_description.txt",
+    csv_path = "../dataset/books_with_emotions.csv",
+    txt_path = "../tagged_description.txt",
     llm_model:   str = "google/flan-t5-base",
     langsmith_project: str = "bookmind-rag",
 ):
@@ -70,7 +70,7 @@ def initialize(
  
     _reranker = BookReranker()
  
-    _llm = get_llm(model=llm_model)
+    _llm = get_llm(llm_model)
  
     print("[Init] All components ready.\n")
     return _books_df
@@ -322,23 +322,18 @@ def run_agent(
         "metrics":      _tracker.to_dict(),
         "reasoning":    _tracker.reasoning,
     }
+
+#
+
+if __name__ == "__main__":
+    initialize()
+    result = run_agent(
+        query    = "a story about grief and unexpected friendship in a small town",
+        category = "Fiction",
+        tone     = "Sad",
+    )
+    print("\nTop 3 results:")
+    if not result["books"].empty:
+        print(result["books"][["title", "authors", "rerank_score"]].head(3))
+    print("\nMetrics:", result["metrics"])
  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
