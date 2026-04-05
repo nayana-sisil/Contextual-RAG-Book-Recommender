@@ -135,6 +135,17 @@ def _explain_book(query: str, title: str, description: str) -> str:
         return _llm.invoke(prompt).strip()
     except Exception:
         return f"'{title}' matches your request through its themes of {query[:50]}."
+
+#analysie query and  find tone
+
+def _analyze_query(query: str) -> dict:
+    prompt = QUERY_ANALYSIS_PROMPT.format(query=query)
+    try:
+        raw = _llm.invoke(prompt).strip()
+        raw = re.sub(r"```json|```", "", raw).strip()
+        return json.loads(raw)
+    except Exception:
+        return {"themes": [], "tone": "neutral", "category": "all", "keywords": []}
  
 
 
