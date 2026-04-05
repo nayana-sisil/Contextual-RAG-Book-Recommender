@@ -17,3 +17,78 @@ from observability import setup_langsmith, RunTracker
 from reranker import BookReranker
 from llm_local import get_llm, EXPLAIN_PROMPT, QUERY_ANALYSIS_PROMPT
 
+load_dotenv()
+
+_books_df:  Optional[pd.DataFrame] = None
+_db_books:  Optional[Chroma]       = None
+_reranker:  Optional[BookReranker] = None
+_llm                               = None
+_tracker:   RunTracker             = RunTracker()
+
+
+def initialize(
+    csv_path:    str = "./dataset/books_with_emotions.csv",
+    txt_path:    str = "./tagged_description.txt",
+    llm_model:   str = "google/flan-t5-base",
+    langsmith_project: str = "bookmind-rag",
+):
+    
+    global _books_df, _db_books, _reranker, _llm
+ 
+    setup_langsmith(project=langsmith_project)
+ 
+    print("[Init] Loading book dataset...")
+    _books_df = pd.read_csv(csv_path)
+    _books_df["large_thumbnail"] = _books_df["thumbnail"].fillna("") + "&fife=w800"
+    _books_df["large_thumbnail"] = np.where(
+        _books_df["large_thumbnail"].str.strip() == "&fife=w800",
+        "cover-not-found.jpg",
+        _books_df["large_thumbnail"],
+    )
+    print(f"[Init] Loaded {len(_books_df)} books.")
+ 
+    print("[Init] Building ChromaDB vector store...")
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        model_kwargs={"device": "cpu"},
+    )
+ 
+    with open(txt_path, "r", encoding="utf-8") as f:
+        raw_text = f.read()
+ 
+    book_chunks = re.split(r'(?=\d{13} )', raw_text)
+    book_chunks = [b.strip() for b in book_chunks if b.strip()]
+ 
+    _db_books = Chroma.from_texts(
+        book_chunks,
+        embedding=embeddings,
+        collection_name="bookmind_v2",
+    )
+    print(f"[Init] Vector store ready with {len(book_chunks)} chunks.")
+ 
+    _reranker = BookReranker()
+ 
+    _llm = get_llm(model=llm_model)
+ 
+    print("[Init] All components ready.\n")
+    return _books_df
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
