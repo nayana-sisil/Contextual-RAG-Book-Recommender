@@ -3,7 +3,7 @@ from typing import Optional, List, Any
 from langchain_core.language_models.llms import LLM
 
 
-def _get_hf_llm():
+def get_llm():
     
     from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
@@ -61,6 +61,6 @@ JSON response only, no explanation:"""
 
 
 if __name__ == "__main__":
-    llm = _get_hf_llm()
+    llm = get_llm()
     result = llm.invoke("In one sentence, what is a book about grief?")
     print("LLM test:", result)
