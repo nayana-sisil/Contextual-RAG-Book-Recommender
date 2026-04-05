@@ -19,7 +19,6 @@ from llm_local import EXPLAIN_PROMPT, QUERY_ANALYSIS_PROMPT
 
 load_dotenv()
 
-# ── Globals ───────────────────────────────────────────────────────────────────
 
 _books_df: Optional[pd.DataFrame] = None
 _db_books: Optional[Chroma]       = None
@@ -27,14 +26,11 @@ _reranker: Optional[BookReranker] = None
 _llm                               = None
 _tracker:  RunTracker              = RunTracker()
 
-# ── Agentic thresholds (tune these) ──────────────────────────────────────────
 
-SCORE_THRESHOLD = 0.0   # below this → rewrite query
-MIN_RESULTS     = 3     # below this → rewrite query
-MAX_RETRIES     = 2     # max rewrite attempts before giving up
+SCORE_THRESHOLD = -1.0   
+MIN_RESULTS     = 3     
+MAX_RETRIES     = 2     
 
-
-# ── LLM ───────────────────────────────────────────────────────────────────────
 
 class FlanT5LLM:
     """
@@ -72,7 +68,6 @@ class FlanT5LLM:
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
 
 
-# ── Initialization ────────────────────────────────────────────────────────────
 
 def initialize(
     csv_path: str          = "../dataset/books_with_emotions.csv",
@@ -120,7 +115,6 @@ def initialize(
     return _books_df
 
 
-# ── Core pipeline steps ───────────────────────────────────────────────────────
 
 def _vector_search(query: str, k: int = 50) -> pd.DataFrame:
     _tracker.log_step("vector-search")
@@ -193,7 +187,6 @@ def _analyze_query(query: str) -> dict:
         return {"themes": [], "tone": "neutral", "category": "all", "keywords": []}
 
 
-# ── Agentic behavior 1: Self-reflection ──────────────────────────────────────
 
 def _reflection(df: pd.DataFrame, top_score: float) -> dict:
     """
@@ -219,7 +212,6 @@ def _reflection(df: pd.DataFrame, top_score: float) -> dict:
     }
 
 
-# ── Agentic behavior 2: Query rewriting ──────────────────────────────────────
 
 def _rewrite_query(original_query: str, attempt: int) -> str:
     """
@@ -235,7 +227,6 @@ def _rewrite_query(original_query: str, attempt: int) -> str:
 
     print(f"[Agent] LLM rewrite: {rewritten!r}")
 
-    # Reject if too short or identical
     if (
         not rewritten
         or len(rewritten.strip()) < 8
@@ -251,7 +242,6 @@ def _rewrite_query(original_query: str, attempt: int) -> str:
     return rewritten
 
 
-# ── Tool wrappers ─────────────────────────────────────────────────────────────
 
 def make_tools(query_ref: dict):
 
@@ -272,7 +262,6 @@ def make_tools(query_ref: dict):
     def tool_rerank(input_str: str) -> str:
         df = query_ref.get("df", _books_df)
 
-        # ── Guard: nothing to rerank ──────────────────────────
         if df.empty:
             query_ref["final_df"] = df
             return "No books to rerank — filter returned 0 results."
@@ -280,7 +269,6 @@ def make_tools(query_ref: dict):
         final = _rerank(input_str, df, top_k=16)
         query_ref["final_df"] = final
 
-        # ── Guard: rerank returned empty ──────────────────────
         if final.empty or "rerank_score" not in final.columns:
             return "Reranker returned no results."
 
@@ -311,7 +299,6 @@ def make_tools(query_ref: dict):
     ]
 
 
-# ── Main agentic entry point ──────────────────────────────────────────────────
 
 def run_agent(
     query:    str,
@@ -360,27 +347,22 @@ def run_agent(
     query_ref: dict = {}
     tools = make_tools(query_ref)
 
-    # ── Agentic loop ──────────────────────────────────────────────────────────
     while attempt <= MAX_RETRIES:
         print(f"\n[Agent] ── Attempt {attempt + 1}/{MAX_RETRIES + 1} ──────────────")
         print(f"[Agent] Query: {active_query!r}")
 
-        # Step 1: Vector search
         r1 = tools[0].func(active_query)
         print(f"  [Step 1] Vector search    → {r1}")
 
-        # Step 2: Metadata filter
         r2 = tools[1].func(f"{category}|{tone}")
         print(f"  [Step 2] Metadata filter  → {r2}")
 
-        # Step 3: Rerank
         r3 = tools[2].func(active_query)
         print(f"  [Step 3] Rerank           → {r3}")
 
         df        = query_ref.get("final_df", pd.DataFrame())
         top_score = _tracker.top_score if not df.empty else -999.0
 
-        # Step 4: Reflect
         reflection = _reflection(df, top_score)
         reflection_log.append({
             "attempt":   attempt + 1,
@@ -399,18 +381,14 @@ def run_agent(
                 print(f"[Agent] Results accepted ✓")
             break
 
-        # Not satisfied → rewrite and retry
         attempt      += 1
         active_query  = _rewrite_query(query, attempt)
         query_history.append(active_query)
-        # Reset query_ref for next attempt
         query_ref.clear()
         tools = make_tools(query_ref)
 
-    # ── Step 5: Explain (once, on final accepted results) ─────────────────────
     explanations: dict = {}
 
-    # ── Guard: no results at all ──────────────────────────────────────────────
     if final_df.empty:
         reasoning = (
             f"No results found after {attempt + 1} attempt(s). "
@@ -449,7 +427,6 @@ def run_agent(
     }
 
 
-# ── CLI entry ─────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     initialize()
