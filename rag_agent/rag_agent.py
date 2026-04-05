@@ -146,6 +146,85 @@ def _analyze_query(query: str) -> dict:
         return json.loads(raw)
     except Exception:
         return {"themes": [], "tone": "neutral", "category": "all", "keywords": []}
+
+
+#tool wrapper
+
+def make_tools(query_ref: dict):
+    
+    def tool_vector_search(input_str: str) -> str:
+        df = _vector_search(input_str, k=50)
+        query_ref["df"] = df
+        return f"Found {len(df)} candidate books via vector search."
+ 
+    def tool_metadata_filter(input_str: str) -> str:
+        parts   = input_str.split("|")
+        cat     = parts[0].strip() if len(parts) > 0 else "All"
+        tone    = parts[1].strip() if len(parts) > 1 else "All"
+        df      = query_ref.get("df", _books_df)
+        filtered = _metadata_filter(df, cat, tone)
+        query_ref["df"] = filtered
+        return f"After filtering: {len(filtered)} books remain."
+ 
+    def tool_rerank(input_str: str) -> str:
+        df    = query_ref.get("df", _books_df)
+        final = _rerank(input_str, df, top_k=16)
+        query_ref["final_df"] = final
+        top3  = final[["title", "rerank_score"]].head(3).to_string(index=False)
+        return f"Reranked to top 16. Top 3:\n{top3}"
+ 
+    def tool_explain(input_str: str) -> str:
+        df = query_ref.get("final_df", query_ref.get("df", pd.DataFrame()))
+        if df.empty:
+            return "No books to explain."
+        explanations = []
+        for _, row in df.head(5).iterrows():
+            exp = _explain_book(input_str, row["title"], str(row.get("description", "")))
+            explanations.append(f"• {row['title']}: {exp}")
+        query_ref["explanations"] = dict(
+            zip(df["title"].head(5).tolist(), [e.split(": ", 1)[-1] for e in explanations])
+        )
+        return "\n".join(explanations)
+ 
+    return [
+        Tool(
+            name="vector_search",
+            func=tool_vector_search,
+            description=(
+                "Search for books semantically similar to a query. "
+                "Use this FIRST with the user's query to get candidate books. "
+                "Input: the search query string."
+            ),
+        ),
+        Tool(
+            name="metadata_filter",
+            func=tool_metadata_filter,
+            description=(
+                "Filter books by category and emotional tone. "
+                "Input format: 'category|tone' e.g. 'Fiction|sad' or 'All|happy'. "
+                "Call AFTER vector_search."
+            ),
+        ),
+        Tool(
+            name="rerank",
+            func=tool_rerank,
+            description=(
+                "Rerank the candidate books using a cross-encoder for higher precision. "
+                "Input: the original user query. Call AFTER metadata_filter."
+            ),
+        ),
+        Tool(
+            name="explain_books",
+            func=tool_explain,
+            description=(
+                "Generate a short explanation for why each top book matches the user's query. "
+                "Input: the original user query. Call LAST, after rerank."
+            ),
+        ),
+    ]
+
+
+ 
  
 
 
