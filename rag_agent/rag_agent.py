@@ -26,6 +26,8 @@ _llm                               = None
 _tracker:   RunTracker             = RunTracker()
 
 
+#intialize
+
 def initialize(
     csv_path:    str = "./dataset/books_with_emotions.csv",
     txt_path:    str = "./tagged_description.txt",
@@ -87,6 +89,31 @@ def _vector_search(query: str, k: int = 50) -> pd.DataFrame:
     matches = _books_df[_books_df["isbn13"].isin(isbn_list)].copy()
     _tracker.candidates = len(matches)
     return matches
+
+
+#metadata filtering
+
+def _metadata_filter(df: pd.DataFrame, category: str, tone: str) -> pd.DataFrame:
+    _tracker.log_step("metadata-filter")
+ 
+    if category and category.lower() not in ("all", ""):
+        df = df[df["simple_categories"] == category]
+ 
+    tone_map = {
+        "happy":       "joy",
+        "surprising":  "surprise",
+        "angry":       "anger",
+        "suspenseful": "fear",
+        "sad":         "sadness",
+    }
+    tone_col = tone_map.get(tone.lower() if tone else "", None)
+    if tone_col and tone_col in df.columns:
+        df = df.sort_values(by=tone_col, ascending=False)
+ 
+    _tracker.after_filter = len(df)
+    return df.head(80)  
+
+
  
 
 
