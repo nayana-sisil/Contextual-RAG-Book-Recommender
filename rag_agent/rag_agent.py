@@ -113,7 +113,28 @@ def _metadata_filter(df: pd.DataFrame, category: str, tone: str) -> pd.DataFrame
     _tracker.after_filter = len(df)
     return df.head(80)  
 
+#reranker
 
+def _rerank(query: str, df: pd.DataFrame, top_k: int = 16) -> pd.DataFrame:
+    """Cross-encoder rerank for final precision."""
+    _tracker.log_step("cross-encoder-rerank")
+    ranked = _reranker.rerank(query, df, text_column="description", top_k=top_k)
+    _tracker.after_rerank = len(ranked)
+    _tracker.top_score    = _reranker.top_score(ranked)
+    return ranked
+
+
+#explain about book
+ 
+def _explain_book(query: str, title: str, description: str) -> str:
+    _tracker.llm_calls += 1
+    prompt = EXPLAIN_PROMPT.format(
+        query=query, title=title, description=description[:400]
+    )
+    try:
+        return _llm.invoke(prompt).strip()
+    except Exception:
+        return f"'{title}' matches your request through its themes of {query[:50]}."
  
 
 
