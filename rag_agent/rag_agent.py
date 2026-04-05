@@ -72,6 +72,21 @@ def initialize(
  
     print("[Init] All components ready.\n")
     return _books_df
+
+#semantic similarity search
+
+def _vector_search(query: str, k: int = 50) -> pd.DataFrame:
+    _tracker.log_step("vector-search")
+    results = _db_books.similarity_search(query, k=k)
+    isbn_list = []
+    for r in results:
+        tokens = r.page_content.strip().split()
+        if tokens and tokens[0].isdigit():
+            isbn_list.append(int(tokens[0]))
+ 
+    matches = _books_df[_books_df["isbn13"].isin(isbn_list)].copy()
+    _tracker.candidates = len(matches)
+    return matches
  
 
 
