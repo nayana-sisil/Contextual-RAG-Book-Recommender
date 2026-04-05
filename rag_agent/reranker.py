@@ -57,7 +57,6 @@ class BookReranker:
 
 
 def normalize_scores(scores: np.ndarray) -> np.ndarray:
-    """Map cross-encoder logits to 0–1 via sigmoid."""
     return 1 / (1 + np.exp(-scores))
 
 
