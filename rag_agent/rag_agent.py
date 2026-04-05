@@ -27,7 +27,7 @@ _llm                               = None
 _tracker:  RunTracker              = RunTracker()
 
 
-SCORE_THRESHOLD = -1.0   
+SCORE_THRESHOLD = -0.5   
 MIN_RESULTS     = 3     
 MAX_RETRIES     = 2     
 
