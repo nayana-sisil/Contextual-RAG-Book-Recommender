@@ -1,66 +1,41 @@
-"""
-llm_local.py
-------------
-Free local LLM setup for BookMind Agentic RAG.
-Primary: Ollama (llama3.2 or phi3) — runs fully on CPU, no API key.
-Fallback: HuggingFace pipeline (also free, also CPU).
-
-Install Ollama: https://ollama.com/download
-Then run: ollama pull llama3.2
-"""
-
 import os
-from typing import Optional
-
-# ── Try Ollama first ──────────────────────────────────────────────────────────
-def get_llm(model: str = "llama3.2", temperature: float = 0.1):
-    """
-    Returns a LangChain-compatible LLM.
-    Tries Ollama first; falls back to HuggingFace pipeline.
-
-    Args:
-        model:       Ollama model name. Options: "llama3.2", "phi3", "mistral"
-        temperature: Lower = more factual answers (0.1 recommended for RAG)
-    """
-    try:
-        from langchain_ollama import OllamaLLM
-        llm = OllamaLLM(model=model, temperature=temperature)
-        # Quick ping to confirm Ollama is running
-        llm.invoke("ping")
-        print(f"[LLM] Using Ollama: {model}")
-        return llm
-    except Exception as e:
-        print(f"[LLM] Ollama not available ({e}). Falling back to HuggingFace pipeline...")
-        return _get_hf_llm()
+from typing import Optional, List, Any
+from langchain_core.language_models.llms import LLM
 
 
 def _get_hf_llm():
-    """
-    HuggingFace fallback — uses a small instruction-tuned model that runs on CPU.
-    Downloads ~500MB on first run, cached afterwards.
-    """
-    from langchain_huggingface import HuggingFacePipeline
-    from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
+    
+    from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-    model_id = "google/flan-t5-base"   # 250MB, fast on CPU, good for short answers
+    model_id = "google/flan-t5-base"
     print(f"[LLM] Loading HuggingFace model: {model_id} (first run downloads ~250MB)")
 
     tokenizer = AutoTokenizer.from_pretrained(model_id)
-    model     = AutoModelForSeq2SeqLM.from_pretrained(model_id)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
 
-    pipe = pipeline(
-        "text2text-generation",
-        model=model,
-        tokenizer=tokenizer,
-        max_new_tokens=200,
-        temperature=0.1,
-        do_sample=False,
-    )
+    class FlanT5LLM(LLM):
+        def _call(self, prompt: str, stop: Optional[List[str]] = None, **kwargs: Any) -> str:
+            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
+            
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=200,
+                temperature=0.1,
+                do_sample=False,
+                pad_token_id=tokenizer.eos_token_id
+            )
+            
+            response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            return response
+        
+        @property
+        def _llm_type(self) -> str:
+            return "flan-t5-base"
+    
     print("[LLM] Using HuggingFace: flan-t5-base")
-    return HuggingFacePipeline(pipeline=pipe)
+    return FlanT5LLM()
 
 
-# ── Prompt templates ──────────────────────────────────────────────────────────
 EXPLAIN_PROMPT = """You are a literary expert. Given a user's book request and a book's description,
 write 2 sentences explaining WHY this specific book matches what the user wants.
 Be specific about themes, tone, and emotional resonance. Be concise.
@@ -86,6 +61,6 @@ JSON response only, no explanation:"""
 
 
 if __name__ == "__main__":
-    llm = get_llm()
+    llm = _get_hf_llm()
     result = llm.invoke("In one sentence, what is a book about grief?")
     print("LLM test:", result)
