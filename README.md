@@ -312,7 +312,7 @@ When LangSmith is configured, every run is traced end to end. The `RunTracker` c
 - Candidate counts at each pipeline stage
 - Top cross-encoder score
 - Number of LLM calls
-- Total wall-clock time
+- Total wall clock time
 
 This data is surfaced both in the Gradio sidebar and in LangSmith's trace viewer.
 
