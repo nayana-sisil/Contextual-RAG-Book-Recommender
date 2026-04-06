@@ -1,6 +1,6 @@
 # BookMind: Contextual RAG Book Recommender
 
-> An AI-powered book recommendation system that understands what you're *in the mood for*, not just what you search for.
+> An AI powered book recommendation system that understands what you're *in the mood for*, not just what you search for.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python)
 ![LangChain](https://img.shields.io/badge/LangChain-0.2+-green?style=flat-square)
