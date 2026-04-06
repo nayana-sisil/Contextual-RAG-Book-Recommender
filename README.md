@@ -1,42 +1,34 @@
-<div align="center">
+# BookMind — Contextual RAG Book Recommender
 
-# 📚 BookMind
-### Contextual RAG Book Recommender
+> An AI-powered book recommendation system that understands what you're *in the mood for*, not just what you search for.
 
-*An AI that understands what you're in the mood for, not just what you search for.*
-
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![LangChain](https://img.shields.io/badge/LangChain-0.2+-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://langchain.com)
-[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector_Store-E57CD8?style=flat-square)](https://trychroma.com)
-[![HuggingFace](https://img.shields.io/badge/🤗_HuggingFace-Transformers-FFD21E?style=flat-square)](https://huggingface.co)
-[![Gradio](https://img.shields.io/badge/Gradio-UI-FF7C00?style=flat-square&logo=gradio)](https://gradio.app)
-
-**[▶ Try the Live Demo](https://huggingface.co/spaces/nayanasisil2700/Contextual-RAG-Book-Recommender)**
-
-</div>
+![Python](https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python)
+![LangChain](https://img.shields.io/badge/LangChain-0.2+-green?style=flat-square)
+![ChromaDB](https://img.shields.io/badge/ChromaDB-vector--store-purple?style=flat-square)
+![HuggingFace](https://img.shields.io/badge/HuggingFace-Transformers-orange?style=flat-square)
+![Gradio](https://img.shields.io/badge/Gradio-UI-red?style=flat-square)
+[![Live Demo](https://img.shields.io/badge/🤗%20Hugging%20Face-Live%20Demo-FFD21E?style=flat-square)](https://huggingface.co/spaces/nayanasisil2700/Contextual-RAG-Book-Recommender)
 
 ---
 
 ## Overview
 
-BookMind is an end-to-end **Agentic Retrieval-Augmented Generation (RAG)** system for book discovery. It goes beyond simple keyword matching by combining semantic vector search, emotion-aware filtering, cross-encoder reranking, and LLM-powered explanations — all orchestrated by an agent that can reflect on its own results and rewrite its query if needed.
+BookMind is an end-to-end **Agentic Retrieval-Augmented Generation (RAG)** system for book discovery. It goes beyond simple keyword matching by combining **semantic vector search**, **emotion-aware filtering**, **cross-encoder reranking**, and **LLM-powered explanations** — all orchestrated by an agent that can reflect on its own results and rewrite its query if needed.
 
-Built on a corpus of **6,810 books** (cleaned to ~5,197 usable entries) sourced from Google Books metadata.
+The system was built on a corpus of **6,810 books** (cleaned to ~5,197 usable entries) sourced from Google Books metadata.
 
 ---
 
 ## Features
 
-| | Feature | Description |
-|---|---|---|
-| 🔍 | **Semantic Search** | Queries embedded with `all-MiniLM-L6-v2` and matched against book descriptions in ChromaDB |
-| 🎭 | **Emotion-Aware Filtering** | Books tagged across 6 emotional dimensions using a fine-tuned BERT model |
-| 📂 | **Zero-Shot Classification** | Untagged books classified as Fiction or Nonfiction using `facebook/bart-large-mnli` |
-| 🎯 | **Cross-Encoder Reranking** | Candidates reranked using `ms-marco-MiniLM-L-6-v2` for precision |
-| 🔄 | **Self-Reflection and Query Rewriting** | Agent evaluates result quality and rewrites the query (up to 2 retries) if scores fall below threshold |
-| ✨ | **LLM Explanations** | `flan-t5-base` generates a personalised "why this book" sentence for each result |
-| 📡 | **LangSmith Observability** | Full pipeline tracing and run metrics |
-| 🖼️ | **Gradio Dashboard** | Book-themed UI with live pipeline trace, reasoning sidebar, and cover image gallery |
+- **Semantic Search** — Queries are embedded with `all-MiniLM-L6-v2` and matched against book descriptions in ChromaDB
+- **Emotion-Aware Filtering** — Books are tagged with 6 emotional dimensions (joy, sadness, anger, fear, surprise, love) using a fine-tuned BERT model; users can filter by mood/tone
+- **Zero-Shot Category Classification** — Books without clear categories are classified as Fiction/Nonfiction using `facebook/bart-large-mnli`
+- **Cross-Encoder Reranking** — Candidate books are reranked using `ms-marco-MiniLM-L-6-v2` for precision
+- **Self-Reflection & Query Rewriting** — The agent evaluates result quality and rewrites the query (up to 2 times) if scores fall below threshold
+- **LLM Explanations** — `flan-t5-base` generates a personalised "why this book" explanation for each recommendation
+- **LangSmith Observability** — Full pipeline tracing and run metrics
+- **Gradio Dashboard** — A polished, book-themed UI showing the full agent pipeline, reasoning, and book gallery
 
 ---
 
@@ -89,105 +81,157 @@ bookmind/
 ├── vector_search.ipynb              # ChromaDB embedding & search experiments
 ├── gradio_dashboard.py              # Full Gradio UI
 ├── tagged_description.txt           # ISBN-prefixed descriptions for vector indexing
-└── cover-not-found.jpg              # Fallback cover image
+├── cover-not-found.jpg              # Fallback cover image
+└── README.md
 ```
 
 ---
 
 ## Data Pipeline
 
-The dataset goes through four sequential preprocessing stages starting from 6,810 raw books.
+The dataset goes through four sequential preprocessing stages:
 
-### 1 — EDA and Cleaning `EDA.ipynb`
+### 1. EDA & Cleaning (`EDA.ipynb`)
+
+Starting from 6,810 raw books:
 
 - Dropped rows missing `description`, `num_pages`, `average_rating`, or `published_year`
-- Removed books with fewer than 25 words in their description (eliminates stubs like *"Donation."* or *"Fantasy-roman."*)
-- Merged `title` and `subtitle` into `title_and_subtitle`
 - Computed `age_of_book = 2026 - published_year`
+- Created `words_in_description` and dropped books with fewer than 25 words in their description (removes uninformative stubs like "Donation." or "Fantasy-roman.")
+- Merged `title` and `subtitle` into `title_and_subtitle`
 - Created `tagged_description` = `isbn13 + " " + description` (used as the vector index unit)
 - **Final cleaned corpus: 5,197 books**
 
-### 2 — Category Classification `text_classification.ipynb`
+Spearman correlation analysis confirmed that missing descriptions and `num_pages` have negligible correlation with `average_rating`, validating the cleaning choices.
 
-The raw dataset had **531 unique category strings**. These were mapped to simplified labels:
+### 2. Category Simplification & Zero-Shot Classification (`text_classfication.ipynb`)
 
-| Original | Simplified |
+The raw dataset contained **531 unique category strings** (e.g. `"Hyland, Morn (Fictitious character)"`, `"Baggins, Frodo (Fictitious character)"`). These were simplified:
+
+| Original category | Simplified |
 |---|---|
 | Fiction | Fiction |
 | Juvenile Fiction | Children's Fiction |
-| Biography & Autobiography, History, Science | Nonfiction |
-| Comics, Drama, Poetry | Fiction |
+| Biography & Autobiography | Nonfiction |
+| History, Philosophy, Religion, Science | Nonfiction |
+| Comics & Graphic Novels, Drama, Poetry | Fiction |
 | Juvenile Nonfiction | Children's Nonfiction |
 
-For the remaining **~1,454 books** with unmapped categories, `facebook/bart-large-mnli` was used in zero-shot mode. Accuracy validated at **77.8%** on a held-out set of 600 books.
+For the remaining **~1,454 books with unmapped categories**, `facebook/bart-large-mnli` was used in zero-shot mode to classify each as Fiction or Nonfiction based on its description. Accuracy validated at **77.8%** on a held-out set of 300+300 books.
 
-### 3 — Emotion Tagging `sentiment_analysis.ipynb`
+### 3. Emotion Tagging (`sentiment_analysis.ipynb`)
 
-Each description was split into sentences and classified by `bhadresh-savani/bert-base-uncased-emotion` across 6 labels: `joy`, `sadness`, `anger`, `fear`, `love`, `surprise`. Scores were averaged to produce a book-level emotion vector and a `dominant_emotion` column for tone-based filtering.
+Each book's description was split into individual sentences and classified by `bhadresh-savani/bert-base-uncased-emotion` across 6 emotion labels: `joy`, `sadness`, `anger`, `fear`, `love`, `surprise`.
 
-### 4 — Vector Indexing `vector_search.ipynb`
+The per-sentence scores were averaged to produce a book-level emotion vector. A `dominant_emotion` column was added using `idxmax`. This enables tone-based filtering in the recommendation UI.
 
-`tagged_description` strings were embedded with `sentence-transformers/all-MiniLM-L6-v2` and stored in ChromaDB. Semantic search is performed at query time against this index.
+### 4. Vector Indexing (`vector_search.ipynb`)
+
+`tagged_description` strings were embedded with `sentence-transformers/all-MiniLM-L6-v2` and stored in ChromaDB. Semantic search is performed at query time.
 
 ---
 
-## Agent Design
+## Agent Design (`rag_agent.py`)
 
-The agent uses a tool-based loop with self-reflection:
+The agent uses a **tool-based loop** with self-reflection:
+
+### Tools
 
 | Tool | Description |
 |---|---|
-| `vector_search` | Retrieves top 50 semantically similar books from ChromaDB |
+| `vector_search` | Retrieves top-50 semantically similar books from ChromaDB |
 | `metadata_filter` | Filters by category and sorts by emotion score; keeps top 80 |
 | `rerank` | Applies cross-encoder to rerank candidates; keeps top 16 |
-| `explain_books` | Calls flan-t5-base to generate a "why this book" sentence per result |
+| `explain_books` | Calls flan-t5-base to generate a "why this book" sentence for each top result |
 
-**Reflection and Retry logic:** after reranking, the agent checks whether there are at least `MIN_RESULTS = 3` books and whether the top cross-encoder score is ≥ `SCORE_THRESHOLD = -0.5`. If not, it rewrites the query with flan-t5 and retries the full pipeline up to `MAX_RETRIES = 2` times.
+### Reflection & Retry
+
+After reranking, the agent checks:
+- Are there at least `MIN_RESULTS = 3` books?
+- Is the top cross-encoder score ≥ `SCORE_THRESHOLD = -0.5`?
+
+If not, it uses flan-t5 to rewrite the query and retries the full pipeline (up to `MAX_RETRIES = 2` times).
+
+### Query History & Metrics
 
 Every run returns:
-
 ```python
 {
-  "books":         pd.DataFrame,    # Final ranked books
-  "explanations":  dict,            # Per-book LLM explanations
-  "metrics":       dict,            # Timing, scores, step counts
-  "reasoning":     str,             # Human-readable agent reasoning
-  "query_history": list[str],       # Original + any rewrites
-  "reflections":   list[dict],      # Per-attempt reflection decisions
+  "books":         pd.DataFrame,       # Final ranked books
+  "explanations":  dict[title, str],   # Per-book LLM explanations
+  "metrics":       dict,               # Timing, scores, step counts
+  "reasoning":     str,                # Human-readable agent reasoning
+  "query_history": list[str],          # Original + any rewrites
+  "reflections":   list[dict],         # Per-attempt reflection decisions
 }
 ```
 
 ---
 
-## Models
+## Models Used
 
-| Model | Role |
-|---|---|
-| `sentence-transformers/all-MiniLM-L6-v2` | Query and document embeddings |
-| `bhadresh-savani/bert-base-uncased-emotion` | Emotion classification (6 labels) |
-| `facebook/bart-large-mnli` | Zero-shot Fiction/Nonfiction classification |
-| `cross-encoder/ms-marco-MiniLM-L-6-v2` | Candidate reranking |
-| `google/flan-t5-base` | Query rewriting and book explanations |
+| Model | Role | Source |
+|---|---|---|
+| `sentence-transformers/all-MiniLM-L6-v2` | Query & document embeddings | HuggingFace |
+| `bhadresh-savani/bert-base-uncased-emotion` | Emotion classification (6 labels) | HuggingFace |
+| `facebook/bart-large-mnli` | Zero-shot Fiction/Nonfiction classification | HuggingFace |
+| `cross-encoder/ms-marco-MiniLM-L-6-v2` | Candidate reranking | HuggingFace |
+| `google/flan-t5-base` | Query rewriting + book explanations | HuggingFace |
 
-> All models run locally on CPU. No GPU required, though GPU will be faster for the sentiment and classification stages.
+All models run locally on CPU (no GPU required, though GPU will be faster for the sentiment and classification stages).
 
 ---
 
-## Setup
+## UI — Gradio Dashboard (`gradio_dashboard.py`)
 
-**Prerequisites:** Python 3.10+, ~4GB disk space for model downloads on first run.
+The dashboard is built with Gradio and features a custom CSS theme inspired by literary aesthetics (Cormorant Garamond typography, warm parchment tones, gold accents).
+
+**UI Components:**
+
+- **Search bar** — Free-text query input
+- **Category dropdown** — Filter by Fiction, Nonfiction, Children's Fiction, etc.
+- **Emotional tone dropdown** — Filter by Happy, Sad, Suspenseful, Angry, Surprising
+- **Pipeline trace bar** — Live visual showing which steps have completed (sticky, updates per run)
+- **Sidebar** — Agent reasoning text, run metrics, tools called, query rewrite history
+- **Book gallery** — 8-column cover image grid with title/author captions
+- **Detail panel** — Full detail view for any selected book, including the LLM-generated "why this book" explanation
+
+---
+
+## Setup & Installation
+
+### Prerequisites
+
+- Python 3.10+
+- ~4GB disk space for model downloads (first run only)
+- `pip` or `conda`
+
+### Install dependencies
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Run the dashboard
-python gradio_dashboard.py
 ```
 
-App is available at `http://127.0.0.1:7860`. Models (~1.5GB total) download automatically on first launch.
+Key dependencies:
+```
+langchain
+langchain-community
+langchain-huggingface
+langchain-chroma
+chromadb
+transformers
+sentence-transformers
+torch
+pandas
+numpy
+gradio
+python-dotenv
+tqdm
+```
 
-**LangSmith tracing (optional)** — create a `.env` file:
+### Environment variables (optional — for LangSmith tracing)
+
+Create a `.env` file in the project root:
 
 ```env
 LANGCHAIN_API_KEY=your_langsmith_api_key
@@ -196,27 +240,43 @@ LANGCHAIN_PROJECT=bookmind-rag
 LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
 ```
 
-If no key is provided, tracing is silently disabled and the app runs normally.
+If no API key is provided, tracing is silently disabled and the app runs normally.
 
-**Standalone usage:**
+### Run the dashboard
+
+```bash
+python gradio_dashboard.py
+```
+
+The app will be available at `http://127.0.0.1:7860`.
+
+On first launch, models (~1.5GB total) will download automatically from HuggingFace.
+
+---
+
+## Running the Agent Standalone
 
 ```python
 from rag_agent.rag_agent import initialize, run_agent
 
+# Load dataset and build vector store
 books_df = initialize(
     csv_path  = "dataset/books_with_emotions.csv",
     txt_path  = "tagged_description.txt",
     llm_model = "google/flan-t5-base",
 )
 
+# Run a recommendation query
 result = run_agent(
     query    = "a melancholic story about grief and unexpected friendship",
     category = "Fiction",
     tone     = "Sad",
 )
 
+# Inspect results
 print(result["books"][["title", "authors", "rerank_score"]].head(5))
 print(result["reasoning"])
+print(result["query_history"])
 ```
 
 ---
@@ -225,34 +285,46 @@ print(result["reasoning"])
 
 | Query | Category | Tone |
 |---|---|---|
-| *"a melancholic wartime love story with exquisite prose"* | Fiction | Sad |
-| *"books to teach children about nature and animals"* | Children's Fiction | Happy |
-| *"a gripping thriller with a female detective"* | Fiction | Suspenseful |
-| *"philosophy of consciousness and the nature of self"* | Nonfiction | Any |
-| *"a story about redemption and second chances"* | Any | Any |
+| "a melancholic wartime love story with exquisite prose" | Fiction | Sad |
+| "books to teach children about nature and animals" | Children's Fiction | Happy |
+| "a gripping thriller with a female detective" | Fiction | Suspenseful |
+| "philosophy of consciousness and the nature of self" | Nonfiction | All |
+| "a story about redemption and second chances" | All | All |
 
 ---
 
-## Limitations and Future Work
+## Observability
 
-> **Small LLM explanations** — `flan-t5-base` is a small model and explanations can sometimes be generic. A larger instruction-tuned model would improve quality.
+When LangSmith is configured, every run is traced end-to-end. The `RunTracker` class logs:
 
-> **Classification accuracy** — Zero-shot classification sits at ~78%. A fine-tuned classifier trained on book descriptions would improve this.
+- Step names and durations in milliseconds
+- Candidate counts at each pipeline stage
+- Top cross-encoder score
+- Number of LLM calls
+- Total wall-clock time
 
-> **Reranking latency** — On CPU, reranking 80 candidates averages 2–3 seconds. Batching or a lighter cross-encoder would reduce this.
+This data is surfaced both in the Gradio sidebar and in LangSmith's trace viewer.
 
-> **Future directions** — User preference memory, collaborative filtering signals, multi-turn conversation support.
+---
+
+## Limitations & Future Work
+
+- **flan-t5-base** is a small model; explanations can sometimes be generic. Upgrading to a larger instruction-tuned model would improve explanation quality.
+- **Zero-shot classification accuracy** is ~78% — a fine-tuned classifier on book descriptions would improve category assignment.
+- **Reranking latency** on CPU averages ~2–3 seconds for 80 candidates. Batching or a lighter cross-encoder model would reduce this.
+- Future: user preference memory, collaborative filtering signals, multi-turn conversation.
 
 ---
 
 ## Acknowledgements
 
-Dataset sourced from the Google Books API. Emotion model by [bhadresh-savani](https://huggingface.co/bhadresh-savani/bert-base-uncased-emotion). Reranker and zero-shot classifier from HuggingFace.
+- Dataset sourced from Google Books API metadata
+- Emotion model: [bhadresh-savani/bert-base-uncased-emotion](https://huggingface.co/bhadresh-savani/bert-base-uncased-emotion)
+- Reranker: [cross-encoder/ms-marco-MiniLM-L-6-v2](https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2)
+- Zero-shot classifier: [facebook/bart-large-mnli](https://huggingface.co/facebook/bart-large-mnli)
 
 ---
 
-<div align="center">
+## License
 
-MIT License · **[▶ Live Demo on Hugging Face Spaces](https://huggingface.co/spaces/nayanasisil2700/Contextual-RAG-Book-Recommender)**
-
-</div>
+MIT License — see `LICENSE` for details.
