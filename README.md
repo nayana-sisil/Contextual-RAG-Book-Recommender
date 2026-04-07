@@ -15,7 +15,7 @@
 
 BookMind is an end to end **Agentic Retrieval Augmented Generation (RAG)** system for book discovery. It goes beyond simple keyword matching by combining **semantic vector search**, **emotion aware filtering**, **cross encoder reranking**, and **LLM powered explanations**  all orchestrated by an agent that can reflect on its own results and rewrite its query if needed.
 
-The system was built on a corpus of **6,810 books** (cleaned to ~5,197 usable entries) sourced from Google Books metadata.
+The system was built on a corpus of **6,810 books** (cleaned to 5,197 usable entries) sourced from Google Books metadata.
 
 ![BookMind Dashboard](assets/dashboard.png)
 
